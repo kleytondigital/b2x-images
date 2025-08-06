@@ -176,11 +176,17 @@ router.post('/images', authenticateToken, upload.array('images', 10), async(req,
 // Listar imagens
 router.get('/images', authenticateToken, async(req, res) => {
     try {
+        console.log('Iniciando listagem de imagens...');
+        console.log('Bucket:', config.minio.bucketName);
+        console.log('Endpoint:', config.minio.endpoint);
+        
         const objectsList = [];
 
-        const stream = minioClient.listObjects(config.minio.bucketName, 'images/', true);
+        // Tentar listar todas as imagens primeiro
+        const stream = minioClient.listObjects(config.minio.bucketName, '', true);
 
         stream.on('data', async (obj) => {
+            console.log('Objeto encontrado:', obj.name, 'Tamanho:', obj.size);
             try {
                 const accessUrl = await generateAccessUrl(obj.name);
                 objectsList.push({
@@ -198,6 +204,7 @@ router.get('/images', authenticateToken, async(req, res) => {
 
         stream.on('end', () => {
             console.log('Imagens encontradas:', objectsList.length);
+            console.log('Lista de objetos:', objectsList);
             res.json({
                 success: true,
                 data: objectsList
