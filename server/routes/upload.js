@@ -189,7 +189,10 @@ router.get('/images', authenticateToken, async(req, res) => {
         stream.on('data', async (obj) => {
             console.log('Objeto encontrado:', obj.name, 'Tamanho:', obj.size);
             try {
-                const accessUrl = await generateAccessUrl(obj.name);
+                // Gerar URL de acesso diretamente sem função assíncrona
+                const baseUrl = `https://${config.minio.endpoint}`;
+                const accessUrl = `${baseUrl}/${config.minio.bucketName}/${obj.name}`;
+                
                 objectsList.push({
                     fileName: obj.name.split('/').pop() || obj.name,
                     objectName: obj.name,
@@ -198,6 +201,7 @@ router.get('/images', authenticateToken, async(req, res) => {
                     accessUrl: accessUrl,
                     mimeType: 'image/jpeg' // Default, pode ser melhorado
                 });
+                console.log('Objeto adicionado à lista:', obj.name);
             } catch (error) {
                 console.error('Erro ao processar objeto:', obj.name, error);
             }
@@ -212,7 +216,7 @@ router.get('/images', authenticateToken, async(req, res) => {
                     data: objectsList
                 });
             }
-        }, 5000);
+        }, 2000);
 
         stream.on('end', () => {
             console.log('Stream finalizado. Imagens encontradas:', objectsList.length);
