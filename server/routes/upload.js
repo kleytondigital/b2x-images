@@ -173,7 +173,7 @@ router.post('/images', authenticateToken, upload.array('images', 10), async(req,
     }
 });
 
-// Listar imagens (opcional)
+// Listar imagens
 router.get('/images', authenticateToken, async(req, res) => {
     try {
         const objectsList = [];
@@ -181,16 +181,23 @@ router.get('/images', authenticateToken, async(req, res) => {
         const stream = minioClient.listObjects(config.minio.bucketName, 'images/', true);
 
         stream.on('data', async (obj) => {
-            const accessUrl = await generateAccessUrl(obj.name);
-            objectsList.push({
-                name: obj.name,
-                size: obj.size,
-                lastModified: obj.lastModified,
-                accessUrl: accessUrl
-            });
+            try {
+                const accessUrl = await generateAccessUrl(obj.name);
+                objectsList.push({
+                    fileName: obj.name.split('/').pop() || obj.name,
+                    objectName: obj.name,
+                    size: obj.size,
+                    lastModified: obj.lastModified,
+                    accessUrl: accessUrl,
+                    mimeType: 'image/jpeg' // Default, pode ser melhorado
+                });
+            } catch (error) {
+                console.error('Erro ao processar objeto:', obj.name, error);
+            }
         });
 
         stream.on('end', () => {
+            console.log('Imagens encontradas:', objectsList.length);
             res.json({
                 success: true,
                 data: objectsList
