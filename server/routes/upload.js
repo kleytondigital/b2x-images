@@ -37,10 +37,22 @@ const upload = multer({
     }
 });
 
-// Função para gerar URL de acesso
-const generateAccessUrl = (objectName) => {
-    const baseUrl = `https://${config.minio.endpoint}`;
-    return `${baseUrl}/${config.minio.bucketName}/${objectName}`;
+// Função para gerar URL de acesso (usando presigned URL como fallback)
+const generateAccessUrl = async (objectName) => {
+    try {
+        // Tentar gerar URL pré-assinada (mais confiável)
+        const presignedUrl = await minioClient.presignedGetObject(
+            config.minio.bucketName,
+            objectName,
+            24 * 60 * 60 // 24 horas
+        );
+        return presignedUrl;
+    } catch (error) {
+        console.error('Erro ao gerar URL de acesso:', error);
+        // Fallback para URL direta
+        const baseUrl = `https://${config.minio.endpoint}`;
+        return `${baseUrl}/${config.minio.bucketName}/${objectName}`;
+    }
 };
 
 // Função para gerar URL pré-assinada (opcional)
@@ -81,7 +93,7 @@ router.post('/image', authenticateToken, upload.single('image'), async(req, res)
         );
 
         // Gerar URLs de acesso
-        const accessUrl = generateAccessUrl(objectName);
+        const accessUrl = await generateAccessUrl(objectName);
         const presignedUrl = await generatePresignedUrl(objectName);
 
         res.json({
@@ -132,7 +144,7 @@ router.post('/images', authenticateToken, upload.array('images', 10), async(req,
                 }
             );
 
-            const accessUrl = generateAccessUrl(objectName);
+            const accessUrl = await generateAccessUrl(objectName);
             const presignedUrl = await generatePresignedUrl(objectName);
 
             uploadResults.push({
@@ -168,12 +180,13 @@ router.get('/images', authenticateToken, async(req, res) => {
 
         const stream = minioClient.listObjects(config.minio.bucketName, 'images/', true);
 
-        stream.on('data', (obj) => {
+        stream.on('data', async (obj) => {
+            const accessUrl = await generateAccessUrl(obj.name);
             objectsList.push({
                 name: obj.name,
                 size: obj.size,
                 lastModified: obj.lastModified,
-                accessUrl: generateAccessUrl(obj.name)
+                accessUrl: accessUrl
             });
         });
 
@@ -192,6 +205,26 @@ router.get('/images', authenticateToken, async(req, res) => {
     } catch (error) {
         console.error('Erro ao listar imagens:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+});
+
+// Rota proxy para servir imagens
+router.get('/image/:objectName', authenticateToken, async(req, res) => {
+    try {
+        const { objectName } = req.params;
+
+        const stream = await minioClient.getObject(config.minio.bucketName, objectName);
+        
+        // Obter metadados para definir o Content-Type
+        const stat = await minioClient.statObject(config.minio.bucketName, objectName);
+        
+        res.setHeader('Content-Type', stat.metaData['content-type'] || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        
+        stream.pipe(res);
+    } catch (error) {
+        console.error('Erro ao servir imagem:', error);
+        res.status(404).json({ error: 'Imagem não encontrada' });
     }
 });
 
