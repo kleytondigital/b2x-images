@@ -1,0 +1,21 @@
+{
+    "name": "b2x-gestor-images",
+    "description": "Gestor profissional de imagens com MinIO",
+    "type": "node",
+    "buildCommand": "npm run deploy",
+    "startCommand": "npm start",
+    "port": 3031,
+    "env": {
+        "NODE_ENV": "production",
+        "PORT": "3031",
+        "MINIO_ENDPOINT": "gestor-minio.y0q0vs.easypanel.host",
+        "MINIO_PORT": "443",
+        "MINIO_USE_SSL": "true",
+        "MINIO_ACCESS_KEY": "admin",
+        "MINIO_SECRET_KEY": "@senhaELAST007",
+        "MINIO_BUCKET_NAME": "b2x-images",
+        "JWT_SECRET": "b2x-gestor-images-secret-key-2024",
+        "ADMIN_USER": "b2x",
+        "ADMIN_PASSWORD": "b2x"
+    }
+}

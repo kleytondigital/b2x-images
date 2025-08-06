@@ -1,0 +1,25 @@
+# Dockerfile Simples para B2X Gestor de Imagens
+FROM node:18-alpine
+
+# Definir diretório de trabalho
+WORKDIR /app
+
+# Copiar todos os arquivos
+COPY . .
+
+# Instalar dependências
+RUN npm install
+RUN cd client && npm install
+
+# Build do cliente
+RUN cd client && npm run build
+
+# Expor porta
+EXPOSE 3031
+
+# Variáveis de ambiente
+ENV NODE_ENV=production
+ENV PORT=3031
+
+# Comando de inicialização
+CMD ["node", "server/index.js"] 
