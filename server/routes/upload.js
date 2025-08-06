@@ -1,339 +1,280 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import {
-    Upload,
-    LogOut,
-    Copy,
-    ExternalLink,
-    Trash2,
-    Image as ImageIcon,
-    Download,
-    CheckCircle,
-    AlertCircle
-} from 'lucide-react';
-import { useDropzone } from 'react-dropzone';
-import axios from 'axios';
-import toast from 'react-hot-toast';
+const express = require('express');
+const multer = require('multer');
+const Minio = require('minio');
+const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+const { authenticateToken } = require('../middleware/auth');
+const config = require('../config');
+const router = express.Router();
 
-const Dashboard = () => {
-    const { user, logout } = useAuth();
-    const navigate = useNavigate();
-    const [uploadedImages, setUploadedImages] = useState([]);
-    const [uploading, setUploading] = useState(false);
-    const [loading, setLoading] = useState(true);
+// Configuração do MinIO
+const minioClient = new Minio.Client({
+    endPoint: config.minio.endpoint,
+    port: config.minio.port,
+    useSSL: config.minio.useSSL,
+    accessKey: config.minio.accessKey,
+    secretKey: config.minio.secretKey
+});
 
-    // Carregar imagens existentes
-    useEffect(() => {
-        loadImages();
-    }, []);
+// Configuração do Multer para upload temporário
+const storage = multer.memoryStorage();
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+    },
+    fileFilter: (req, file, cb) => {
+        // Permitir apenas imagens
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
 
-    const loadImages = async() => {
-        try {
-            console.log('Carregando imagens...');
-            const response = await axios.get('/api/upload/images');
-            console.log('Resposta da API:', response.data);
-            if (response.data.success) {
-                console.log('Imagens carregadas:', response.data.data);
-                setUploadedImages(response.data.data);
-            }
-        } catch (error) {
-            console.error('Erro ao carregar imagens:', error);
-        } finally {
-            setLoading(false);
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Apenas arquivos de imagem são permitidos!'));
         }
-    };
+    }
+});
 
-    // Configuração do Dropzone
-    const onDrop = async(acceptedFiles) => {
-        if (acceptedFiles.length === 0) return;
-
-        setUploading(true);
-
-        try {
-            const formData = new FormData();
-            acceptedFiles.forEach(file => {
-                formData.append('images', file);
-            });
-
-            const response = await axios.post('/api/upload/images', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-
-            if (response.data.success) {
-                toast.success(response.data.message);
-                setUploadedImages(prev => [...response.data.data, ...prev]);
-            }
-        } catch (error) {
-            console.error('Erro no upload:', error);
-            toast.error(error.response && error.response.data && error.response.data.error || 'Erro ao fazer upload');
-        } finally {
-            setUploading(false);
-        }
-    };
-
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        onDrop,
-        accept: {
-            'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp']
-        },
-        maxSize: 10 * 1024 * 1024, // 10MB
-        multiple: true
-    });
-
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
-        toast.success('Logout realizado com sucesso!');
-    };
-
-    const copyToClipboard = async(text) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            toast.success('Link copiado para a área de transferência!');
-        } catch (error) {
-            toast.error('Erro ao copiar link');
-        }
-    };
-
-    const deleteImage = async(objectName) => {
-        try {
-            await axios.delete(`/api/upload/image/${encodeURIComponent(objectName)}`);
-            setUploadedImages(prev => prev.filter(img => img.objectName !== objectName));
-            toast.success('Imagem deletada com sucesso!');
-        } catch (error) {
-            toast.error('Erro ao deletar imagem');
-        }
-    };
-
-    const formatFileSize = (bytes) => {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    };
-
-    return ( <
-            div className = "min-h-screen bg-gray-50" > { /* Header */ } <
-            header className = "bg-white shadow-sm border-b" >
-            <
-            div className = "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" >
-            <
-            div className = "flex justify-between items-center py-4" >
-            <
-            div className = "flex items-center space-x-3" >
-            <
-            div className = "h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center" >
-            <
-            span className = "text-white font-bold text-lg" > B2X < /span> < /
-            div > <
-            div >
-            <
-            h1 className = "text-xl font-semibold text-gray-900" >
-            Gestor de Imagens <
-            /h1> <
-            p className = "text-sm text-gray-500" >
-            Bem - vindo, { user && user.username }!
-            <
-            /p> < /
-            div > <
-            /div> <
-            button onClick = { handleLogout }
-            className = "flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" >
-            <
-            LogOut className = "h-5 w-5" / >
-            <
-            span > Sair < /span> < /
-            button > <
-            /div> < /
-            div > <
-            /header>
-
-            <
-            div className = "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" > { /* Área de Upload */ } <
-            div className = "mb-8" >
-            <
-            div {...getRootProps() }
-            className = { `border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
-              isDragActive
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-300 hover:border-gray-400'
-            } ${uploading ? 'opacity-50 pointer-events-none' : ''}` } >
-            <
-            input {...getInputProps() }
-            /> <
-            div className = "space-y-4" >
-            <
-            div className = "mx-auto h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center" > {
-                uploading ? ( <
-                    div className = "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" > < /div>
-                ) : ( <
-                    Upload className = "h-8 w-8 text-blue-600" / >
-                )
-            } <
-            /div> <
-            div >
-            <
-            h3 className = "text-lg font-medium text-gray-900 mb-2" > { uploading ? 'Enviando imagens...' : 'Arraste e solte suas imagens aqui' } <
-            /h3> <
-            p className = "text-gray-500" >
-            ou clique para selecionar arquivos <
-            /p> <
-            p className = "text-sm text-gray-400 mt-2" >
-            Suporta: JPG, PNG, GIF, WEBP(máx .10 MB cada) <
-            /p> < /
-            div > <
-            /div> < /
-            div > <
-            /div>
-
-            { /* Lista de Imagens */ } <
-            div className = "space-y-6" >
-            <
-            div className = "flex items-center justify-between" >
-            <
-            h2 className = "text-xl font-semibold text-gray-900" >
-            Imagens Enviadas <
-            /h2> {
-            uploadedImages.length > 0 && ( <
-                span className = "text-sm text-gray-500" > { uploadedImages.length }
-                imagem(ns) <
-                /span>
-            )
-        } <
-        /div>
-
-    {
-        loading ? ( <
-            div className = "text-center py-12" >
-            <
-            div className = "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" > < /div> <
-            p className = "text-gray-500 mt-2" > Carregando imagens... < /p> < /
-            div >
-        ) : uploadedImages.length === 0 ? ( <
-            div className = "text-center py-12" >
-            <
-            ImageIcon className = "h-12 w-12 text-gray-400 mx-auto mb-4" / >
-            <
-            h3 className = "text-lg font-medium text-gray-900 mb-2" >
-            Nenhuma imagem enviada <
-            /h3> <
-            p className = "text-gray-500" >
-            Faça upload de suas primeiras imagens para começar <
-            /p> < /
-            div >
-        ) : ( <
-            div className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" > {
-                uploadedImages.map((image, index) => ( <
-                    div key = { index }
-                    className = "bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow" > { /* Preview da Imagem */ } <
-                    div className = "aspect-w-16 aspect-h-9 bg-gray-100" >
-                    <
-                    img src = { image.accessUrl }
-                    alt = { image.fileName }
-                    className = "w-full h-48 object-cover"
-                    onError = {
-                        (e) => {
-                            console.log('Erro ao carregar imagem:', image.fileName, 'URL:', e.target.src);
-                            // Fallback para rota proxy se a URL direta falhar
-                            if (image.objectName && !e.target.src.includes('/api/upload/image/')) {
-                                console.log('Tentando fallback para proxy:', image.objectName);
-                                e.target.src = `/api/upload/image/${encodeURIComponent(image.objectName)}`;
-                            } else {
-                                console.log('Usando placeholder para:', image.fileName);
-                                e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOWNhM2FmIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCI+SW1hZ2VtIG5vIGVuY29udHJhZGE8L3RleHQ+PC9zdmc+';
-                            }
-                        }
-                    }
-                    /> < /
-                    div >
-
-                    { /* Informações da Imagem */ } <
-                    div className = "p-4 space-y-3" >
-                    <
-                    div >
-                    <
-                    h3 className = "font-medium text-gray-900 truncate"
-                    title = { image.fileName } > { image.fileName } <
-                    /h3> <
-                    p className = "text-sm text-gray-500" > { formatFileSize(image.size) } <
-                    /p> < /
-                    div >
-
-                    { /* Links de Acesso */ } <
-                    div className = "space-y-2" >
-                    <
-                    div className = "flex items-center space-x-2" >
-                    <
-                    span className = "text-xs font-medium text-gray-700" > Link Direto: < /span> <
-                    button onClick = {
-                        () => copyToClipboard(image.accessUrl)
-                    }
-                    className = "flex items-center space-x-1 text-xs text-blue-600 hover:text-blue-800" >
-                    <
-                    Copy className = "h-3 w-3" / >
-                    <
-                    span > Copiar < /span> < /
-                    button > <
-                    /div>
-
-                    {
-                        image.presignedUrl && ( <
-                            div className = "flex items-center space-x-2" >
-                            <
-                            span className = "text-xs font-medium text-gray-700" > Link Temporário: < /span> <
-                            button onClick = {
-                                () => copyToClipboard(image.presignedUrl)
-                            }
-                            className = "flex items-center space-x-1 text-xs text-green-600 hover:text-green-800" >
-                            <
-                            Copy className = "h-3 w-3" / >
-                            <
-                            span > Copiar < /span> < /
-                            button > <
-                            /div>
-                        )
-                    } <
-                    /div>
-
-                    { /* Ações */ } <
-                    div className = "flex items-center justify-between pt-2 border-t border-gray-100" >
-                    <
-                    button onClick = {
-                        () => window.open(image.accessUrl, '_blank')
-                    }
-                    className = "flex items-center space-x-1 text-xs text-blue-600 hover:text-blue-800" >
-                    <
-                    ExternalLink className = "h-3 w-3" / >
-                    <
-                    span > Visualizar < /span> < /
-                    button >
-
-                    <
-                    button onClick = {
-                        () => deleteImage(image.objectName)
-                    }
-                    className = "flex items-center space-x-1 text-xs text-red-600 hover:text-red-800" >
-                    <
-                    Trash2 className = "h-3 w-3" / >
-                    <
-                    span > Deletar < /span> < /
-                    button > <
-                    /div> < /
-                    div > <
-                    /div>
-                ))
-            } <
-            /div>
-        )
-    } <
-    /div> < /
-    div > <
-        /div>
-);
+// Função para gerar URL de acesso (usando presigned URL como fallback)
+const generateAccessUrl = async (objectName) => {
+    try {
+        // Tentar gerar URL pré-assinada (mais confiável)
+        const presignedUrl = await minioClient.presignedGetObject(
+            config.minio.bucketName,
+            objectName,
+            24 * 60 * 60 // 24 horas
+        );
+        return presignedUrl;
+    } catch (error) {
+        console.error('Erro ao gerar URL de acesso:', error);
+        // Fallback para URL direta
+        const baseUrl = `https://${config.minio.endpoint}`;
+        return `${baseUrl}/${config.minio.bucketName}/${objectName}`;
+    }
 };
 
-export default Dashboard;
+// Função para gerar URL pré-assinada (opcional)
+const generatePresignedUrl = async(objectName, expiresIn = 604800) => {
+    try {
+        return await minioClient.presignedGetObject(
+            config.minio.bucketName,
+            objectName,
+            expiresIn
+        );
+    } catch (error) {
+        console.error('Erro ao gerar URL pré-assinada:', error);
+        return null;
+    }
+};
+
+// Upload de imagem
+router.post('/image', authenticateToken, upload.single('image'), async(req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhuma imagem foi enviada' });
+        }
+
+        // Gerar nome único para o arquivo
+        const fileExtension = path.extname(req.file.originalname);
+        const fileName = `${uuidv4()}${fileExtension}`;
+        const objectName = `images/${fileName}`;
+
+        // Upload para o MinIO
+        await minioClient.putObject(
+            config.minio.bucketName,
+            objectName,
+            req.file.buffer,
+            req.file.size, {
+                'Content-Type': req.file.mimetype,
+                'x-amz-meta-originalname': req.file.originalname
+            }
+        );
+
+        // Gerar URLs de acesso
+        const accessUrl = await generateAccessUrl(objectName);
+        const presignedUrl = await generatePresignedUrl(objectName);
+
+        res.json({
+            success: true,
+            message: 'Imagem enviada com sucesso!',
+            data: {
+                fileName: req.file.originalname,
+                objectName: objectName,
+                size: req.file.size,
+                mimeType: req.file.mimetype,
+                accessUrl: accessUrl,
+                presignedUrl: presignedUrl,
+                uploadedAt: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        console.error('Erro no upload:', error);
+        res.status(500).json({
+            error: 'Erro ao fazer upload da imagem',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// Upload múltiplo de imagens
+router.post('/images', authenticateToken, upload.array('images', 10), async(req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ error: 'Nenhuma imagem foi enviada' });
+        }
+
+        const uploadResults = [];
+
+        for (const file of req.files) {
+            const fileExtension = path.extname(file.originalname);
+            const fileName = `${uuidv4()}${fileExtension}`;
+            const objectName = `images/${fileName}`;
+
+            // Upload para o MinIO
+            await minioClient.putObject(
+                config.minio.bucketName,
+                objectName,
+                file.buffer,
+                file.size, {
+                    'Content-Type': file.mimetype,
+                    'x-amz-meta-originalname': file.originalname
+                }
+            );
+
+            const accessUrl = await generateAccessUrl(objectName);
+            const presignedUrl = await generatePresignedUrl(objectName);
+
+            uploadResults.push({
+                fileName: file.originalname,
+                objectName: objectName,
+                size: file.size,
+                mimeType: file.mimetype,
+                accessUrl: accessUrl,
+                presignedUrl: presignedUrl,
+                uploadedAt: new Date().toISOString()
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `${uploadResults.length} imagem(ns) enviada(s) com sucesso!`,
+            data: uploadResults
+        });
+
+    } catch (error) {
+        console.error('Erro no upload múltiplo:', error);
+        res.status(500).json({
+            error: 'Erro ao fazer upload das imagens',
+            details: config.server.nodeEnv === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// Listar imagens
+router.get('/images', authenticateToken, async(req, res) => {
+    try {
+        console.log('Iniciando listagem de imagens...');
+        console.log('Bucket:', config.minio.bucketName);
+        console.log('Endpoint:', config.minio.endpoint);
+        
+        const objectsList = [];
+
+        // Tentar listar todas as imagens primeiro
+        console.log('Tentando listar objetos do bucket:', config.minio.bucketName);
+        const stream = minioClient.listObjects(config.minio.bucketName, '', true);
+
+        stream.on('data', async (obj) => {
+            console.log('Objeto encontrado:', obj.name, 'Tamanho:', obj.size);
+            try {
+                const accessUrl = await generateAccessUrl(obj.name);
+                objectsList.push({
+                    fileName: obj.name.split('/').pop() || obj.name,
+                    objectName: obj.name,
+                    size: obj.size,
+                    lastModified: obj.lastModified,
+                    accessUrl: accessUrl,
+                    mimeType: 'image/jpeg' // Default, pode ser melhorado
+                });
+            } catch (error) {
+                console.error('Erro ao processar objeto:', obj.name, error);
+            }
+        });
+
+        // Adicionar timeout para garantir que a resposta seja enviada
+        setTimeout(() => {
+            if (!res.headersSent) {
+                console.log('Timeout - enviando resposta com', objectsList.length, 'imagens');
+                res.json({
+                    success: true,
+                    data: objectsList
+                });
+            }
+        }, 5000);
+
+        stream.on('end', () => {
+            console.log('Stream finalizado. Imagens encontradas:', objectsList.length);
+            console.log('Lista de objetos:', objectsList);
+            if (!res.headersSent) {
+                res.json({
+                    success: true,
+                    data: objectsList
+                });
+            }
+        });
+
+        stream.on('error', (error) => {
+            console.error('Erro no stream:', error);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Erro ao listar imagens' });
+            }
+        });
+
+    } catch (error) {
+        console.error('Erro ao listar imagens:', error);
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+});
+
+// Rota proxy para servir imagens (sem autenticação para permitir acesso direto)
+router.get('/image/:objectName', async(req, res) => {
+    try {
+        const { objectName } = req.params;
+        console.log('Servindo imagem:', objectName);
+
+        const stream = await minioClient.getObject(config.minio.bucketName, objectName);
+        
+        // Obter metadados para definir o Content-Type
+        const stat = await minioClient.statObject(config.minio.bucketName, objectName);
+        
+        res.setHeader('Content-Type', stat.metaData['content-type'] || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        
+        stream.pipe(res);
+    } catch (error) {
+        console.error('Erro ao servir imagem:', error);
+        res.status(404).json({ error: 'Imagem não encontrada' });
+    }
+});
+
+// Deletar imagem
+router.delete('/image/:objectName', authenticateToken, async(req, res) => {
+    try {
+        const { objectName } = req.params;
+
+        await minioClient.removeObject(config.minio.bucketName, objectName);
+
+        res.json({
+            success: true,
+            message: 'Imagem deletada com sucesso!'
+        });
+
+    } catch (error) {
+        console.error('Erro ao deletar imagem:', error);
+        res.status(500).json({ error: 'Erro ao deletar imagem' });
+    }
+});
+
+module.exports = router; 
