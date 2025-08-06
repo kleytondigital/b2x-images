@@ -183,6 +183,7 @@ router.get('/images', authenticateToken, async(req, res) => {
         const objectsList = [];
 
         // Tentar listar todas as imagens primeiro
+        console.log('Tentando listar objetos do bucket:', config.minio.bucketName);
         const stream = minioClient.listObjects(config.minio.bucketName, '', true);
 
         stream.on('data', async (obj) => {
@@ -203,7 +204,7 @@ router.get('/images', authenticateToken, async(req, res) => {
         });
 
         stream.on('end', () => {
-            console.log('Imagens encontradas:', objectsList.length);
+            console.log('Stream finalizado. Imagens encontradas:', objectsList.length);
             console.log('Lista de objetos:', objectsList);
             res.json({
                 success: true,
@@ -212,7 +213,7 @@ router.get('/images', authenticateToken, async(req, res) => {
         });
 
         stream.on('error', (error) => {
-            console.error('Erro ao listar objetos:', error);
+            console.error('Erro no stream:', error);
             res.status(500).json({ error: 'Erro ao listar imagens' });
         });
 
