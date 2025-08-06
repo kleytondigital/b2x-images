@@ -232,7 +232,7 @@ const Dashboard = () => {
                     className = "bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow" > { /* Preview da Imagem */ } <
                     div className = "aspect-w-16 aspect-h-9 bg-gray-100" >
                     <
-                    img src = { `/api/upload/image/${encodeURIComponent(image.objectName)}` }
+                    img src = { image.accessUrl }
                     alt = { image.fileName }
                     className = "w-full h-48 object-cover"
                     onError = {
